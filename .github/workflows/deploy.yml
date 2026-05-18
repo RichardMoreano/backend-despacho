@@ -1,0 +1,46 @@
+name: Backend Despacho CI/CD
+
+on:
+  push:
+    branches: [ deploy ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Backend Ventas
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/backend-despacho:${{ github.sha }} .
+          docker tag ${{ secrets.DOCKER_USERNAME }}/backend-despacho:${{ github.sha }} ${{ secrets.DOCKER_USERNAME }}/backend-despacho:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/backend-despacho:${{ github.sha }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/backend-despacho:latest
+
+      - name: Deploy to EC2 Backend
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST_BACKEND }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            docker pull ${{ secrets.DOCKER_USERNAME }}/backend-despacho:latest
+            docker stop backend-despacho || true
+            docker rm backend-despacho || true
+            docker run -d --name backend-despacho \
+              -p 8081:8081 \
+              --restart always \
+              -e DB_ENDPOINT=${{ secrets.DB_ENDPOINT }} \
+              -e DB_PORT=3306 \
+              -e DB_NAME=${{ secrets.DB_NAME }} \
+              -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
+              -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              ${{ secrets.DOCKER_USERNAME }}/backend-despacho:latest
