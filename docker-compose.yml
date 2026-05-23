@@ -1,0 +1,36 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: mysql-despacho
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: despacho_db
+      MYSQL_USER: despacho_user
+      MYSQL_PASSWORD: despacho_pass
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: backend-despacho
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      DB_ENDPOINT: db
+      DB_PORT: 3306
+      DB_NAME: despacho_db
+      DB_USERNAME: despacho_user
+      DB_PASSWORD: despacho_pass
+    restart: unless-stopped
+
+volumes:
+  db_data:
